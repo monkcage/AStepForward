@@ -23,7 +23,7 @@ model.add(Dense(1))
 model.compile(loss='mean_sequared_error', optimizer='adam')
 
 model.fit(xtrain, ytrain, epochs=epoch, batch_size=batch)
-result = model.predict(x, batch_size=batch)
+result = model.predict(xtrain, batch_size=batch)
 
 for val in result:
     # 如果直接用%f可以发现结果是有一定的误差的。
