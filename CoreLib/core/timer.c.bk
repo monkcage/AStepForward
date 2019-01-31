@@ -1,0 +1,87 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/time.h>
+#include <inttypes.h>
+#include <sys/epoll.h>
+#include "heap.h"
+
+typedef struct Timer{
+	uint64_t interval;
+	uint64_t base;
+	uint64_t expire;
+	void (*cb_event)(struct Timer* tm);
+}Timer;
+
+uint64_t nowTime()
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+void addTimer(Heap* heap, uint64_t interval, void (*cb)(Timer*))
+{
+	if(heap == NULL){
+		return;
+	}
+
+	Timer* mytimer = malloc(sizeof(*mytimer));
+	mytimer->base = nowTime();
+	mytimer->interval = interval;
+	mytimer->expire = mytimer->base + interval;
+	mytimer->cb_event = cb;
+	heapPush(heap, mytimer);
+}
+
+int cb_compare(const void* node1, const void* node2)
+{
+	Timer* tm1 = (Timer*)node1;
+	Timer* tm2 = (Timer*)node2;
+
+	return tm1->expire - tm2->expire;
+}
+
+int timeout(Heap* heap)
+{
+	uint64_t now = nowTime();
+	while(heap->size > 0){
+		Timer* tm = (Timer*)heap->data[0];
+		if(tm->expire <= now) {
+			tm->cb_event(tm);
+			heapPop(heap);
+		} else {
+			return tm->expire - now;
+		}
+	}
+	return 5000;
+}
+
+void cb_timeout(Timer* tm)
+{
+	printf("%llu\n",(long long unsigned) nowTime());
+}
+
+int main()
+{
+	Heap heap;
+	heapInit(&heap, 100, cb_compare);
+#if 0
+	addTimer(&heap, 2000, cb_timeout);
+	addTimer(&heap, 1000, cb_timeout);
+	addTimer(&heap, 4000, cb_timeout);	
+	addTimer(&heap, 5000, cb_timeout);
+#else
+	addTimer(&heap, 1000, cb_timeout);
+	addTimer(&heap, 2000, cb_timeout);
+	addTimer(&heap, 5000, cb_timeout);
+	addTimer(&heap, 4000, cb_timeout);	
+#endif
+
+	int epollfd = epoll_create(1024);
+	struct epoll_event ev;
+	while(1){
+		epoll_wait(epollfd, &ev, 1, timeout(&heap));
+	}
+
+	return 0;
+}
